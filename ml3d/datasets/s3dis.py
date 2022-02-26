@@ -23,6 +23,7 @@ class S3DIS(BaseDataset):
     """
 
     def __init__(self,
+                 bucket,
                  dataset_path,
                  name='S3DIS',
                  task='segmentation',
@@ -70,7 +71,7 @@ class S3DIS(BaseDataset):
 
         cfg = self.cfg
 
-        assert isdir(dataset_path), f"Invalid dataset path {dataset_path}"
+        # assert isdir(dataset_path), f"Invalid dataset path {dataset_path}"
 
         self.label_to_names = self.get_label_to_names()
         self.num_classes = len(self.label_to_names)
@@ -80,16 +81,19 @@ class S3DIS(BaseDataset):
 
         self.test_split = 'Area_' + str(cfg.test_area_idx)
 
-        self.pc_path = join(self.cfg.dataset_path, 'original_pkl')
-
-        if not exists(self.pc_path):
-            print("creating dataset")
-            self.create_ply_files(self.cfg.dataset_path, self.label_to_names)
+# TODO: clean up this
+#        self.pc_path = join(self.cfg.dataset_path, 'original_pkl')
+#
+#        if not exists(self.pc_path):
+#            print("creating dataset")
+#            self.create_ply_files(self.cfg.dataset_path, self.label_to_names)
 
         # TODO : if num of ply files < 272, then create.
 
-        self.all_files = glob.glob(
-            str(Path(self.cfg.dataset_path) / 'original_pkl' / '*.pkl'))
+        self.bucket = bucket
+        self.all_files = [blob.name for blob in bucket.list_blobs(prefix=dataset_path + "original_pkl/")] # NOTE: Remember to only read .pkl files!
+        #self.all_files = glob.glob(
+            #str(Path(self.cfg.dataset_path) / 'original_pkl' / '*.pkl'))
 
     @staticmethod
     def get_label_to_names():
@@ -261,6 +265,7 @@ class S3DISSplit(BaseDatasetSplit):
 
     def __init__(self, dataset, split='training'):
         super().__init__(dataset, split=split)
+        self.bucket = dataset.bucket
         log.info("Found {} pointclouds for {}".format(len(self.path_list),
                                                       split))
 
@@ -269,7 +274,9 @@ class S3DISSplit(BaseDatasetSplit):
 
     def get_data(self, idx):
         pc_path = self.path_list[idx]
-        data = pickle.load(open(pc_path, 'rb'))
+        pc_blob = self.bucket.get_blob(pc_path)
+        data_pickled = pc_blob.download_as_string()
+        data = pickle.loads(data_pickled)
 
         pc, bboxes = data
         pc = pc[~np.isnan(pc).any(1)]
