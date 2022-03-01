@@ -79,21 +79,24 @@ class S3DIS(BaseDataset):
         self.label_to_idx = {l: i for i, l in enumerate(self.label_values)}
         self.ignored_labels = np.array([])
 
-        self.test_split = 'Area_' + str(cfg.test_area_idx)
+        self.test_split = "Area_" + str(cfg.test_area_idx)
 
-# TODO: clean up this
-#        self.pc_path = join(self.cfg.dataset_path, 'original_pkl')
-#
-#        if not exists(self.pc_path):
-#            print("creating dataset")
-#            self.create_ply_files(self.cfg.dataset_path, self.label_to_names)
+        # TODO: clean up this
+        #        self.pc_path = join(self.cfg.dataset_path, 'original_pkl')
+        #
+        #        if not exists(self.pc_path):
+        #            print("creating dataset")
+        #            self.create_ply_files(self.cfg.dataset_path, self.label_to_names)
 
         # TODO : if num of ply files < 272, then create.
 
         self.bucket = bucket
-        self.all_files = [blob.name for blob in bucket.list_blobs(prefix=dataset_path + "original_pkl/")] # NOTE: Remember to only read .pkl files!
-        #self.all_files = glob.glob(
-            #str(Path(self.cfg.dataset_path) / 'original_pkl' / '*.pkl'))
+        self.all_files = [
+            blob.name
+            for blob in bucket.list_blobs(prefix=dataset_path + "original_pkl/")
+        ]  # NOTE: Remember to only read .pkl files!
+        # self.all_files = glob.glob(
+        # str(Path(self.cfg.dataset_path) / 'original_pkl' / '*.pkl'))
 
     @staticmethod
     def get_label_to_names():

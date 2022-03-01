@@ -12,12 +12,37 @@ log = logging.getLogger(__name__)
 
 
 class EIF(BaseDataset):
-    def __init__(self, dataset_path, name="EIF"):
-        super().__init__(dataset_path=dataset_path, name=name)
+    def __init__(
+        self,
+        bucket,
+        dataset_path,
+        name="EIF",
+        task="segmentation",
+        use_cache=False,
+        test_result_folder="./test",
+        cache_dir="./logs/cache",
+        # TODO: num_points=TODO
+        **kwargs
+    ):
+        super().__init__(
+            dataset_path=dataset_path,
+            name=name,
+            task=task,
+            cache_dir=cache_dir,
+            use_cache=use_cache,
+            test_result_folder=test_result_folder,
+            # num_points=num_points, TODO
+            **kwargs
+        )
 
-        assert isdir(dataset_path), f"Invalid dataset path {dataset_path}"
+        self.bucket = bucket
+        self.all_files = [
+            blob.name
+            for blob in bucket.list_blobs(prefix=dataset_path)
+            if ".xyz" in blob.name
+        ]
 
-        self.all_files = glob.glob(str(Path(self.cfg.dataset_path) / "**" / "*.xyz"))
+        assert (len(self.all_files) > 0), f"Invalid dataset path: {dataset_path}"
         self.num_files = len(self.all_files)
 
     @staticmethod
@@ -98,19 +123,25 @@ class EIF(BaseDataset):
 class EIFSplit(BaseDatasetSplit):
     def __init__(self, dataset, split="train"):
         super().__init__(dataset, split=split)
+        self.bucket = dataset.bucket
         log.info("Found {} pointclouds for {}".format(len(self.path_list), split))
 
     def __len__(self):
         return len(self.path_list)
 
     def get_data(self, idx):
-        point_cloud_filepath = self.path_list[idx]
-        point_cloud = o3d.io.read_point_cloud(point_cloud_filepath, format="xyz")
-        # NOTE: Using io.read_point_cloud may be inefficient compared to reading the file directly. Consider changing this for increased efficiency!
+        point_cloud_path = self.path_list[idx]
+        pc_blob = self.bucket.get_blob(point_cloud_path)
 
-        filename = self.get_attr(idx)["name"]
+        # TODO: This procedure may be inefficient. Consider changing this if speed becomes an issue
+        f = open('tmp/tmp_pc.xyz', 'wb')
+        data = pc_blob.download_to_file(f)
+        f.close()
+        point_cloud = o3d.io.read_point_cloud('tmp/tmp_pc.xyz', format="xyz")
+
         label_name = self.get_attr(idx)["label"]
         label = self.dataset.get_name_to_label()[label_name]
+
         # All points in each point cloud are the same label
         # for the EIF dataset, hence this line
         labels = np.array(
